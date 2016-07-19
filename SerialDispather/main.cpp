@@ -7,6 +7,10 @@
 #include <stdio.h>
 #include "serial_dispatcher.h"
 
+void func() {
+    printf("func()\n");
+}
+
 int main(int argc, const char * argv[]) {
     serial_dispatcher dispatcher;
     dispatcher.start();
@@ -25,6 +29,10 @@ int main(int argc, const char * argv[]) {
         printf("sync: 2\n");
     });
     
+    dispatcher.async(func);
+    
+    printf("end of sync\n");
+    
     dispatcher.async([]() {
         printf("async: first\n");
     });
@@ -42,7 +50,7 @@ int main(int argc, const char * argv[]) {
     dispatcher.async([]() {
         printf("async: last\n");
     });
-
+    
     printf("end of main()\n");
     return 0;
 }
