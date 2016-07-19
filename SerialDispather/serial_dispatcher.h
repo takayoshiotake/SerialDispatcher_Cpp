@@ -15,10 +15,10 @@
 struct serial_dispatcher {
 private:
     std::mutex apiMutex_;
-    bool isRunning_;
+    bool isRunning_ = false;
     
     std::thread thread_;
-    bool requiresStop_;
+    bool requiresStop_ = false;
     std::mutex executeMutex_;
     std::mutex worksMutex_;
     std::deque<std::function<void(void)>> works_;
