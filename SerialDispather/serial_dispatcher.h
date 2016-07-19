@@ -31,6 +31,10 @@ public:
         stop();
     }
     
+    bool isRunning() const {
+        return isRunning_;
+    }
+    
     void start() {
         std::lock_guard<std::mutex> apiLock(apiMutex_);
         if (isRunning_) {
