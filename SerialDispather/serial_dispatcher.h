@@ -15,7 +15,7 @@
 
 struct serial_dispatcher {
 private:
-    std::mutex apiMutex_;
+    std::recursive_mutex apiMutex_;
     bool isRunning_ = false;
     
     std::thread thread_;
@@ -37,7 +37,7 @@ public:
     }
     
     void start() {
-        std::lock_guard<std::mutex> apiLock(apiMutex_);
+        std::lock_guard<std::recursive_mutex> apiLock(apiMutex_);
         if (isRunning_) {
             return;
         }
@@ -53,13 +53,12 @@ public:
     }
     
     void stop() {
-        std::lock_guard<std::mutex> apiLock(apiMutex_);
+        std::lock_guard<std::recursive_mutex> apiLock(apiMutex_);
         if (!isRunning_) {
             return;
         }
         if (thread_.joinable()) {
-            // Do not call async(std::function<void(void)>), it causes dead lock.
-            async_without_api_lock([this]() {
+            async([this]() {
                 requiresStop_ = true;
             });
             thread_.join();
@@ -88,15 +87,17 @@ public:
     }
     
     void async(std::function<void(void)>&& work) {
-        std::lock_guard<std::mutex> apiLock(apiMutex_);
+        std::lock_guard<std::recursive_mutex> apiLock(apiMutex_);
         if (!isRunning_) {
             return;
         }
-        async_without_api_lock(std::move(work));
+        std::lock_guard<std::mutex> lock(worksMutex_);
+        works_.push_back(work);
+        isExecutable_ = true;
     }
     
     void sync(std::function<void(void)>&& work) {
-        std::lock_guard<std::mutex> apiLock(apiMutex_);
+        std::lock_guard<std::recursive_mutex> apiLock(apiMutex_);
         if (!isRunning_) {
             return;
         }
@@ -111,13 +112,6 @@ public:
         }
         // Make sync
         promise.get_future().get();
-    }
-    
-private:
-    void async_without_api_lock(std::function<void(void)>&& work) {
-        std::lock_guard<std::mutex> lock(worksMutex_);
-        works_.push_back(work);
-        isExecutable_ = true;
     }
 };
 
