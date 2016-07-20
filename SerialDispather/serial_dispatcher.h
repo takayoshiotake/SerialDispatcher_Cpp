@@ -20,9 +20,10 @@ private:
     
     std::thread thread_;
     bool requiresStop_ = false;
-    bool isExecutable_ = false;
+    
     std::mutex worksMutex_;
     std::deque<std::function<void(void)>> works_;
+    std::condition_variable workable_;
     
 public:
     serial_dispatcher() {
@@ -47,7 +48,6 @@ public:
         {
             std::lock_guard<std::mutex> lock(worksMutex_);
             works_.clear();
-            isExecutable_ = false;
         }
         thread_ = std::thread(&serial_dispatcher::execute, this);
     }
@@ -73,7 +73,7 @@ public:
         }
         std::lock_guard<std::mutex> lock(worksMutex_);
         works_.push_back(work);
-        isExecutable_ = true;
+        workable_.notify_all();
     }
     
     void sync(std::function<void(void)>&& work) {
@@ -88,7 +88,7 @@ public:
             works_.push_back([&promise]() {
                 promise.set_value();
             });
-            isExecutable_ = true;
+            workable_.notify_all();
         }
         // Make sync
         promise.get_future().get();
@@ -96,19 +96,14 @@ public:
 private:
     void execute() {
         while (!requiresStop_) {
-            if (!isExecutable_) {
-                // FIXME: Avoid sleep
-                std::this_thread::sleep_for(std::chrono::milliseconds(50));
-                continue;
-            }
             std::function<void(void)> function;
             {
-                std::lock_guard<std::mutex> lock(worksMutex_);
+                std::unique_lock<std::mutex> lock(worksMutex_);
+                if (works_.empty()) {
+                    workable_.wait(lock);
+                }
                 function = works_.front();
                 works_.pop_front();
-                if (works_.empty()) {
-                    isExecutable_ = false;
-                }
             }
             function();
         }
