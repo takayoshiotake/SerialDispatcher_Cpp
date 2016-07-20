@@ -60,7 +60,7 @@ public:
         if (thread_.joinable()) {
             // Do not call async(std::function<void(void)>), it causes dead lock.
             async_without_api_lock([this]() {
-                this->requiresStop_ = true;
+                requiresStop_ = true;
             });
             thread_.join();
         }
