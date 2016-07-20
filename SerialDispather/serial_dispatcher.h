@@ -114,8 +114,8 @@ private:
         }
     }
 
-    serial_dispatcher(const serial_dispatcher&) {}
-    void operator =(serial_dispatcher&) {}
+    serial_dispatcher(const serial_dispatcher&) = delete;
+    serial_dispatcher& operator =(const serial_dispatcher&) = delete;
 };
 
 #endif /* serial_dispatcher_h */
