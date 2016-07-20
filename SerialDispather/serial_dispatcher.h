@@ -8,6 +8,7 @@
 #define serial_dispatcher_h
 
 #include <mutex>
+#include <future>
 #include <thread>
 #include <functional>
 #include <deque>
@@ -19,7 +20,7 @@ private:
     
     std::thread thread_;
     bool requiresStop_ = false;
-    std::mutex executeMutex_;
+    bool isExecutable_ = false;
     std::mutex worksMutex_;
     std::deque<std::function<void(void)>> works_;
     
@@ -46,7 +47,7 @@ public:
         {
             std::lock_guard<std::mutex> lock(worksMutex_);
             works_.clear();
-            executeMutex_.lock();   // not executable
+            isExecutable_ = false;
         }
         thread_ = std::thread(&serial_dispatcher::execute, this);
     }
@@ -68,14 +69,18 @@ public:
     
     void execute() {
         while (!requiresStop_) {
-            executeMutex_.lock();
+            if (!isExecutable_) {
+                // FIXME: Avoid sleep
+                std::this_thread::sleep_for(std::chrono::milliseconds(50));
+                continue;
+            }
             std::function<void(void)> function;
             {
                 std::lock_guard<std::mutex> lock(worksMutex_);
                 function = works_.front();
                 works_.pop_front();
-                if (works_.size() != 0) {
-                    executeMutex_.unlock();   // executable
+                if (works_.empty()) {
+                    isExecutable_ = false;
                 }
             }
             function();
@@ -95,25 +100,24 @@ public:
         if (!isRunning_) {
             return;
         }
-        std::mutex wait;
-        wait.lock();
+        std::promise<void> promise;
         {
             std::lock_guard<std::mutex> lock(worksMutex_);
             works_.push_back(work);
-            works_.push_back([&wait]() {
-                // Make sync
-                wait.unlock();
+            works_.push_back([&promise]() {
+                promise.set_value();
             });
-            executeMutex_.unlock();   // executable
+            isExecutable_ = true;
         }
-        wait.lock();
+        // Make sync
+        promise.get_future().get();
     }
     
 private:
     void async_without_api_lock(std::function<void(void)>&& work) {
         std::lock_guard<std::mutex> lock(worksMutex_);
         works_.push_back(work);
-        executeMutex_.unlock();   // executable
+        isExecutable_ = true;
     }
 };
 
