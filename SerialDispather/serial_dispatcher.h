@@ -66,26 +66,6 @@ public:
         isRunning_ = false;
     }
     
-    void execute() {
-        while (!requiresStop_) {
-            if (!isExecutable_) {
-                // FIXME: Avoid sleep
-                std::this_thread::sleep_for(std::chrono::milliseconds(50));
-                continue;
-            }
-            std::function<void(void)> function;
-            {
-                std::lock_guard<std::mutex> lock(worksMutex_);
-                function = works_.front();
-                works_.pop_front();
-                if (works_.empty()) {
-                    isExecutable_ = false;
-                }
-            }
-            function();
-        }
-    }
-    
     void async(std::function<void(void)>&& work) {
         std::lock_guard<std::recursive_mutex> apiLock(apiMutex_);
         if (!isRunning_) {
@@ -113,6 +93,29 @@ public:
         // Make sync
         promise.get_future().get();
     }
+private:
+    void execute() {
+        while (!requiresStop_) {
+            if (!isExecutable_) {
+                // FIXME: Avoid sleep
+                std::this_thread::sleep_for(std::chrono::milliseconds(50));
+                continue;
+            }
+            std::function<void(void)> function;
+            {
+                std::lock_guard<std::mutex> lock(worksMutex_);
+                function = works_.front();
+                works_.pop_front();
+                if (works_.empty()) {
+                    isExecutable_ = false;
+                }
+            }
+            function();
+        }
+    }
+
+    serial_dispatcher(const serial_dispatcher&) {}
+    void operator =(serial_dispatcher&) {}
 };
 
 #endif /* serial_dispatcher_h */
