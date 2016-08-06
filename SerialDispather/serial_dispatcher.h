@@ -77,21 +77,29 @@ public:
     }
     
     void sync(std::function<void(void)>&& work) {
-        std::lock_guard<std::recursive_mutex> apiLock(apiMutex_);
-        if (!isRunning_) {
-            return;
+        if (std::this_thread::get_id() != thread_.get_id()) {
+            std::lock_guard<std::recursive_mutex> apiLock(apiMutex_);
+            if (!isRunning_) {
+                return;
+            }
+            std::promise<void> promise;
+            {
+                std::lock_guard<std::mutex> lock(worksMutex_);
+                works_.push_back(work);
+                works_.push_back([&promise]() {
+                    promise.set_value();
+                });
+                workable_.notify_all();
+            }
+            // Make sync
+            promise.get_future().get();
         }
-        std::promise<void> promise;
-        {
-            std::lock_guard<std::mutex> lock(worksMutex_);
-            works_.push_back(work);
-            works_.push_back([&promise]() {
-                promise.set_value();
-            });
-            workable_.notify_all();
+        else {
+            if (!isRunning_) {
+                return;
+            }
+            work();
         }
-        // Make sync
-        promise.get_future().get();
     }
 private:
     void execute() {
