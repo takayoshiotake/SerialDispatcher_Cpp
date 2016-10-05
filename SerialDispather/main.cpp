@@ -66,6 +66,8 @@ int main(int argc, const char * argv[]) {
         printf("async: last\n");
     });
     
+    // Wait for action "async in async in sync in async" is registered
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
     printf("end of main()\n");
     return 0;
 }

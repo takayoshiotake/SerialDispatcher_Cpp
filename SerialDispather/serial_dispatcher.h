@@ -67,13 +67,23 @@ public:
     }
     
     void async(std::function<void(void)>&& work) {
-        std::lock_guard<std::recursive_mutex> apiLock(apiMutex_);
-        if (!isRunning_) {
-            return;
+        if (std::this_thread::get_id() != thread_.get_id()) {
+            std::lock_guard<std::recursive_mutex> apiLock(apiMutex_);
+            if (!isRunning_) {
+                return;
+            }
+            std::lock_guard<std::mutex> lock(worksMutex_);
+            works_.push_back(work);
+            workable_.notify_all();
         }
-        std::lock_guard<std::mutex> lock(worksMutex_);
-        works_.push_back(work);
-        workable_.notify_all();
+        else {
+            if (!isRunning_) {
+                return;
+            }
+            std::lock_guard<std::mutex> lock(worksMutex_);
+            works_.push_back(work);
+            workable_.notify_all();
+        }
     }
     
     void sync(std::function<void(void)>&& work) {
