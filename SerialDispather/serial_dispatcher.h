@@ -15,13 +15,13 @@
 
 struct serial_dispatcher {
 private:
-    std::recursive_mutex apiMutex_;
-    bool isRunning_ = false;
+    std::recursive_mutex api_mutex_;
+    bool is_running_ = false;
     
     std::thread thread_;
-    bool requiresStop_ = false;
+    bool requires_stop_ = false;
     
-    std::mutex worksMutex_;
+    std::mutex works_mutex_;
     std::deque<std::function<void(void)>> works_;
     std::condition_variable workable_;
     
@@ -33,54 +33,54 @@ public:
         stop();
     }
     
-    bool isRunning() const {
-        return isRunning_;
+    bool is_running() const {
+        return is_running_;
     }
     
     void start() {
-        std::lock_guard<std::recursive_mutex> apiLock(apiMutex_);
-        if (isRunning_) {
+        std::lock_guard<std::recursive_mutex> api_lock(api_mutex_);
+        if (is_running_) {
             return;
         }
-        isRunning_ = true;
-        requiresStop_ = false;
+        is_running_ = true;
+        requires_stop_ = false;
         // Clear all works
         {
-            std::lock_guard<std::mutex> lock(worksMutex_);
+            std::lock_guard<std::mutex> lock(works_mutex_);
             works_.clear();
         }
         thread_ = std::thread(&serial_dispatcher::execute, this);
     }
     
     void stop() {
-        std::lock_guard<std::recursive_mutex> apiLock(apiMutex_);
-        if (!isRunning_) {
+        std::lock_guard<std::recursive_mutex> api_lock(api_mutex_);
+        if (!is_running_) {
             return;
         }
         if (thread_.joinable()) {
-            async([this]() {
-                requiresStop_ = true;
+            async([&]() {
+                requires_stop_ = true;
             });
             thread_.join();
         }
-        isRunning_ = false;
+        is_running_ = false;
     }
     
     void async(std::function<void(void)>&& work) {
         if (std::this_thread::get_id() != thread_.get_id()) {
-            std::lock_guard<std::recursive_mutex> apiLock(apiMutex_);
-            if (!isRunning_) {
+            std::lock_guard<std::recursive_mutex> api_lock(api_mutex_);
+            if (!is_running_) {
                 return;
             }
-            std::lock_guard<std::mutex> lock(worksMutex_);
+            std::lock_guard<std::mutex> lock(works_mutex_);
             works_.push_back(work);
             workable_.notify_all();
         }
         else {
-            if (!isRunning_) {
+            if (!is_running_) {
                 return;
             }
-            std::lock_guard<std::mutex> lock(worksMutex_);
+            std::lock_guard<std::mutex> lock(works_mutex_);
             works_.push_back(work);
             workable_.notify_all();
         }
@@ -88,13 +88,13 @@ public:
     
     void sync(std::function<void(void)>&& work) {
         if (std::this_thread::get_id() != thread_.get_id()) {
-            std::lock_guard<std::recursive_mutex> apiLock(apiMutex_);
-            if (!isRunning_) {
+            std::lock_guard<std::recursive_mutex> api_lock(api_mutex_);
+            if (!is_running_) {
                 return;
             }
             std::promise<void> promise;
             {
-                std::lock_guard<std::mutex> lock(worksMutex_);
+                std::lock_guard<std::mutex> lock(works_mutex_);
                 works_.push_back(work);
                 works_.push_back([&promise]() {
                     promise.set_value();
@@ -105,7 +105,7 @@ public:
             promise.get_future().get();
         }
         else {
-            if (!isRunning_) {
+            if (!is_running_) {
                 return;
             }
             work();
@@ -113,10 +113,10 @@ public:
     }
 private:
     void execute() {
-        while (!requiresStop_) {
+        while (!requires_stop_) {
             std::function<void(void)> function;
             {
-                std::unique_lock<std::mutex> lock(worksMutex_);
+                std::unique_lock<std::mutex> lock(works_mutex_);
                 if (works_.empty()) {
                     workable_.wait(lock);
                 }
