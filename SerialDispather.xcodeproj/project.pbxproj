@@ -23,7 +23,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		12526E411D3E4DC700384426 /* serial_dispatcher.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = serial_dispatcher.h; sourceTree = "<group>"; };
+		12526E411D3E4DC700384426 /* serial_dispatcher.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = serial_dispatcher.hpp; sourceTree = "<group>"; };
 		1291B9651D3E382500FF4FF0 /* SerialDispather */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = SerialDispather; sourceTree = BUILT_PRODUCTS_DIR; };
 		1291B9681D3E382500FF4FF0 /* main.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = main.cpp; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -59,7 +59,7 @@
 			isa = PBXGroup;
 			children = (
 				1291B9681D3E382500FF4FF0 /* main.cpp */,
-				12526E411D3E4DC700384426 /* serial_dispatcher.h */,
+				12526E411D3E4DC700384426 /* serial_dispatcher.hpp */,
 			);
 			path = SerialDispather;
 			sourceTree = "<group>";

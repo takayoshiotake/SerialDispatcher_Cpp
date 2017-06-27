@@ -1,17 +1,19 @@
 //
 //  serial_dispatcher.h
 //
-//  Copyright © 2016 OTAKE Takayoshi. All rights reserved.
+//  Copyright © 2016-2017 OTAKE Takayoshi. All rights reserved.
 //
 
-#ifndef serial_dispatcher_h
-#define serial_dispatcher_h
+#pragma once
 
+#include <type_traits>
 #include <mutex>
 #include <future>
 #include <thread>
 #include <functional>
 #include <deque>
+
+extern void* enabler;
 
 struct serial_dispatcher {
 private:
@@ -111,6 +113,32 @@ public:
             work();
         }
     }
+    
+    template <typename _R, typename std::enable_if<!std::is_void<_R>::value>::type*& = enabler>
+    _R sync(std::function<_R(void)>&& work) {
+        if (std::this_thread::get_id() != thread_.get_id()) {
+            std::lock_guard<std::recursive_mutex> api_lock(api_mutex_);
+            if (!is_running_) {
+                throw std::runtime_error("Not running");
+            }
+            std::promise<_R> promise;
+            auto future = promise.get_future();
+            {
+                std::lock_guard<std::mutex> lock(works_mutex_);
+                works_.push_back([&promise, &work]() {
+                    promise.set_value(work());
+                });
+                workable_.notify_all();
+            }
+            return future.get();
+        }
+        else {
+            if (!is_running_) {
+                throw std::runtime_error("Not running");
+            }
+            return work();
+        }
+    }
 private:
     void execute() {
         while (!requires_stop_) {
@@ -130,5 +158,3 @@ private:
     serial_dispatcher(const serial_dispatcher&) = delete;
     serial_dispatcher& operator =(const serial_dispatcher&) = delete;
 };
-
-#endif /* serial_dispatcher_h */
