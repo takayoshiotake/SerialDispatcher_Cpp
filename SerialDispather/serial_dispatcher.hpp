@@ -88,7 +88,9 @@ public:
         }
     }
     
-    void sync(std::function<void(void)>&& work) {
+    // _Function likes std::function<void(_Args...)>
+    template <typename _Function, typename... _Args>
+    void sync(_Function&& work, const _Args&... args) {
         if (std::this_thread::get_id() != thread_.get_id()) {
             std::lock_guard<std::recursive_mutex> api_lock(api_mutex_);
             if (!is_running_) {
@@ -97,8 +99,8 @@ public:
             std::promise<void> promise;
             {
                 std::lock_guard<std::mutex> lock(works_mutex_);
-                works_.push_back(work);
-                works_.push_back([&promise]() {
+                works_.push_back([&promise, &work, &args...]() {
+                    work(args...);
                     promise.set_value();
                 });
                 workable_.notify_all();
@@ -110,12 +112,41 @@ public:
             if (!is_running_) {
                 return;
             }
-            work();
+            work(args...);
         }
     }
     
-    template <typename _R, typename std::enable_if<!std::is_void<_R>::value>::type*& = enabler>
-    _R sync(std::function<_R(void)>&& work) {
+    // _Function likes std::function<void(_Args...)>
+    template <typename _Function, typename... _Args>
+    void sync(_Function& work, const _Args&... args) {
+        if (std::this_thread::get_id() != thread_.get_id()) {
+            std::lock_guard<std::recursive_mutex> api_lock(api_mutex_);
+            if (!is_running_) {
+                return;
+            }
+            std::promise<void> promise;
+            {
+                std::lock_guard<std::mutex> lock(works_mutex_);
+                works_.push_back([&promise, &work, &args...]() {
+                    work(args...);
+                    promise.set_value();
+                });
+                workable_.notify_all();
+            }
+            // Make sync
+            promise.get_future().get();
+        }
+        else {
+            if (!is_running_) {
+                return;
+            }
+            work(args...);
+        }
+    }
+    
+    // _Function likes std::function<_R(_Args...)>
+    template <typename _R, typename _Function, typename... _Args, typename std::enable_if<!std::is_void<_R>::value>::type*& = enabler>
+    _R sync(_Function&& work, const _Args&... args) {
         if (std::this_thread::get_id() != thread_.get_id()) {
             std::lock_guard<std::recursive_mutex> api_lock(api_mutex_);
             if (!is_running_) {
@@ -125,8 +156,8 @@ public:
             auto future = promise.get_future();
             {
                 std::lock_guard<std::mutex> lock(works_mutex_);
-                works_.push_back([&promise, &work]() {
-                    promise.set_value(work());
+                works_.push_back([&promise, &work, &args...]() {
+                    promise.set_value(work(args...));
                 });
                 workable_.notify_all();
             }
@@ -136,7 +167,34 @@ public:
             if (!is_running_) {
                 throw std::runtime_error("Not running");
             }
-            return work();
+            return work(args...);
+        }
+    }
+    
+    // _Function likes std::function<_R(_Args...)>
+    template <typename _R, typename _Function, typename... _Args, typename std::enable_if<!std::is_void<_R>::value>::type*& = enabler>
+    _R sync(_Function& work, const _Args&... args) {
+        if (std::this_thread::get_id() != thread_.get_id()) {
+            std::lock_guard<std::recursive_mutex> api_lock(api_mutex_);
+            if (!is_running_) {
+                throw std::runtime_error("Not running");
+            }
+            std::promise<_R> promise;
+            auto future = promise.get_future();
+            {
+                std::lock_guard<std::mutex> lock(works_mutex_);
+                works_.push_back([&promise, &work, &args...]() {
+                    promise.set_value(work(args...));
+                });
+                workable_.notify_all();
+            }
+            return future.get();
+        }
+        else {
+            if (!is_running_) {
+                throw std::runtime_error("Not running");
+            }
+            return work(args...);
         }
     }
 private:

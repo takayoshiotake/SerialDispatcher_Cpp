@@ -26,6 +26,30 @@ struct func_t<void> {
     }
 };
 
+template <typename _T>
+struct func_sum_t {
+    _T initial_;
+    
+    func_sum_t(const _T& initial)
+    : initial_(initial) {
+    }
+    
+    _T operator()(_T a, _T b) {
+        printf("func_sum_t<%s>::()\n", typeid(_T).name());
+        return initial_ + a + b;
+    }
+};
+
+template <typename _T>
+struct func_sum2_t {
+    _T sum_;
+    
+    void operator()(_T a, _T b) {
+        printf("func_sum2_t<%s>::()\n", typeid(_T).name());
+        sum_ = a + b;
+    }
+};
+
 int main(int argc, const char * argv[]) {
     serial_dispatcher dispatcher;
     dispatcher.start();
@@ -92,6 +116,15 @@ int main(int argc, const char * argv[]) {
     
     auto z = dispatcher.sync<int>(func_t<int>{});
     printf("sync: %d\n", z);
+    
+    auto sum = dispatcher.sync<int>(func_sum_t<int>(2), 10, 4);
+    printf("sync: %d\n", sum);
+    
+    dispatcher.sync(func_sum2_t<int>{}, 10, 4);
+    
+    func_sum2_t<int> sum2;
+    dispatcher.sync(sum2, 10, 4);
+    printf("sync: %d\n", sum2.sum_);
     
     // Wait for action "async in async in sync in async" is registered
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
