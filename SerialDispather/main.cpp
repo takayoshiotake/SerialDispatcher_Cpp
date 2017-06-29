@@ -1,7 +1,7 @@
 //
 //  main.cpp
 //
-//  Copyright © 2016 OTAKE Takayoshi. All rights reserved.
+//  Copyright © 2016-2017 OTAKE Takayoshi. All rights reserved.
 //
 
 #include <stdio.h>
@@ -125,6 +125,15 @@ int main(int argc, const char * argv[]) {
     func_sum2_t<int> sum2;
     dispatcher.sync(sum2, 10, 4);
     printf("sync: %d\n", sum2.sum_);
+    
+    try {
+        dispatcher.sync([]() {
+            throw std::runtime_error("error_sync");
+        });
+    }
+    catch (const std::runtime_error& e) {
+        printf("exception in sync: %s\n", e.what());
+    }
     
     // Wait for action "async in async in sync in async" is registered
     std::this_thread::sleep_for(std::chrono::milliseconds(100));

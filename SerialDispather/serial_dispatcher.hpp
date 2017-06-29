@@ -94,14 +94,19 @@ public:
         if (std::this_thread::get_id() != thread_.get_id()) {
             std::lock_guard<std::recursive_mutex> api_lock(api_mutex_);
             if (!is_running_) {
-                return;
+                throw std::runtime_error("Not running");
             }
             std::promise<void> promise;
             {
                 std::lock_guard<std::mutex> lock(works_mutex_);
                 works_.push_back([&promise, &work, &args...]() {
-                    work(args...);
-                    promise.set_value();
+                    try {
+                        work(args...);
+                        promise.set_value();
+                    }
+                    catch (...) {
+                        promise.set_exception(std::current_exception());
+                    }
                 });
                 workable_.notify_all();
             }
@@ -110,7 +115,7 @@ public:
         }
         else {
             if (!is_running_) {
-                return;
+                throw std::runtime_error("Not running");
             }
             work(args...);
         }
@@ -122,14 +127,19 @@ public:
         if (std::this_thread::get_id() != thread_.get_id()) {
             std::lock_guard<std::recursive_mutex> api_lock(api_mutex_);
             if (!is_running_) {
-                return;
+                throw std::runtime_error("Not running");
             }
             std::promise<void> promise;
             {
                 std::lock_guard<std::mutex> lock(works_mutex_);
                 works_.push_back([&promise, &work, &args...]() {
-                    work(args...);
-                    promise.set_value();
+                    try {
+                        work(args...);
+                        promise.set_value();
+                    }
+                    catch (...) {
+                        promise.set_exception(std::current_exception());
+                    }
                 });
                 workable_.notify_all();
             }
@@ -138,7 +148,7 @@ public:
         }
         else {
             if (!is_running_) {
-                return;
+                throw std::runtime_error("Not running");
             }
             work(args...);
         }
@@ -153,15 +163,20 @@ public:
                 throw std::runtime_error("Not running");
             }
             std::promise<_R> promise;
-            auto future = promise.get_future();
             {
                 std::lock_guard<std::mutex> lock(works_mutex_);
                 works_.push_back([&promise, &work, &args...]() {
-                    promise.set_value(work(args...));
+                    try {
+                        promise.set_value(work(args...));
+                    }
+                    catch (...) {
+                        promise.set_exception(std::current_exception());
+                    }
                 });
                 workable_.notify_all();
             }
-            return future.get();
+            // Make sync
+            return promise.get_future().get();
         }
         else {
             if (!is_running_) {
@@ -180,15 +195,20 @@ public:
                 throw std::runtime_error("Not running");
             }
             std::promise<_R> promise;
-            auto future = promise.get_future();
             {
                 std::lock_guard<std::mutex> lock(works_mutex_);
                 works_.push_back([&promise, &work, &args...]() {
-                    promise.set_value(work(args...));
+                    try {
+                        promise.set_value(work(args...));
+                    }
+                    catch (...) {
+                        promise.set_exception(std::current_exception());
+                    }
                 });
                 workable_.notify_all();
             }
-            return future.get();
+            // Make sync
+            return promise.get_future().get();
         }
         else {
             if (!is_running_) {
@@ -209,6 +229,7 @@ private:
                 function = works_.front();
                 works_.pop_front();
             }
+            // MEMO: Do not catch an exception of async.
             function();
         }
     }
