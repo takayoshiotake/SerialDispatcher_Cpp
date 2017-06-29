@@ -135,6 +135,16 @@ int main(int argc, const char * argv[]) {
         printf("exception in sync: %s\n", e.what());
     }
     
+    dispatcher.async<void>([](int value) {
+        printf("async: value = %d\n", value);
+    }, y).get();
+    
+    auto calculated = dispatcher.async<int>([](int value) {
+        printf("async: value = %d\n", value);
+        return value * 10;
+    }, y);
+    printf("async: calculated = %d\n", calculated.get());
+    
     // Wait for action "async in async in sync in async" is registered
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     printf("end of main()\n");

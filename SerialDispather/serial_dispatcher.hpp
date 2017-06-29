@@ -89,6 +89,89 @@ public:
     }
     
     // _Function likes std::function<void(_Args...)>
+    template <typename _R, typename _Function, typename... _Args, typename std::enable_if<std::is_void<_R>::value>::type*& = enabler>
+    std::future<void> async(_Function&& work, _Args&&... args) {
+        auto promise_ptr = std::make_shared<std::promise<void>>();
+        do {
+            if (std::this_thread::get_id() != thread_.get_id()) {
+                std::lock_guard<std::recursive_mutex> api_lock(api_mutex_);
+                if (!is_running_) {
+                    throw std::runtime_error("Not running");
+                }
+                std::lock_guard<std::mutex> lock(works_mutex_);
+                works_.push_back([=]() {
+                    try {
+                        work(args...);
+                        promise_ptr->set_value();
+                    }
+                    catch (...) {
+                        promise_ptr->set_exception(std::current_exception());
+                    }
+                });
+                workable_.notify_all();
+            }
+            else {
+                if (!is_running_) {
+                    throw std::runtime_error("Not running");
+                }
+                std::lock_guard<std::mutex> lock(works_mutex_);
+                works_.push_back([=]() {
+                    try {
+                        work(args...);
+                        promise_ptr->set_value();
+                    }
+                    catch (...) {
+                        promise_ptr->set_exception(std::current_exception());
+                    }
+                });
+                workable_.notify_all();
+            }
+        } while (0);
+        return promise_ptr->get_future();
+    }
+    
+    // _Function likes std::function<_R(_Args...)>
+    template <typename _R, typename _Function, typename... _Args, typename std::enable_if<!std::is_void<_R>::value>::type*& = enabler>
+    std::future<_R> async(_Function&& work, _Args&&... args) {
+        auto promise_ptr = std::make_shared<std::promise<_R>>();
+        do {
+            if (std::this_thread::get_id() != thread_.get_id()) {
+                std::lock_guard<std::recursive_mutex> api_lock(api_mutex_);
+                if (!is_running_) {
+                    throw std::runtime_error("Not running");
+                }
+                std::lock_guard<std::mutex> lock(works_mutex_);
+                works_.push_back([=]() {
+                    try {
+                        promise_ptr->set_value(work(args...));
+                    }
+                    catch (...) {
+                        promise_ptr->set_exception(std::current_exception());
+                    }
+                });
+                workable_.notify_all();
+            }
+            else {
+                if (!is_running_) {
+                    throw std::runtime_error("Not running");
+                }
+                std::lock_guard<std::mutex> lock(works_mutex_);
+                works_.push_back([=]() {
+                    try {
+                        promise_ptr->set_value(work(args...));
+                    }
+                    catch (...) {
+                        promise_ptr->set_exception(std::current_exception());
+                    }
+                });
+                workable_.notify_all();
+            }
+        } while (0);
+        return promise_ptr->get_future();
+    }
+
+    
+    // _Function likes std::function<void(_Args...)>
     template <typename _Function, typename... _Args>
     void sync(_Function&& work, const _Args&... args) {
         if (std::this_thread::get_id() != thread_.get_id()) {
